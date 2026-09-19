@@ -1,0 +1,56 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: fireguard-api-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-fireguard}
+      POSTGRES_USER: ${POSTGRES_USER:-fireguard}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in fireguard-api/.env}
+    volumes:
+      - fireguard-api-postgres-data:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - fireguard-api-db
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: fireguard-api-gateway
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-fireguard}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-fireguard}
+      INTAKE_SERVICE_URL: http://agent-intake:8004
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8090:8080"
+    networks:
+      - fireguard-api-db
+      - fireguard-agents
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8080/health')\" || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+volumes:
+  fireguard-api-postgres-data:
+
+networks:
+  fireguard-api-db:
+    driver: bridge
+    internal: true
+  fireguard-agents:
+    external: true
+    name: fireguard-vector-store_fireguard-net

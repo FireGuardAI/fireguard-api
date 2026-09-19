@@ -1,0 +1,177 @@
+{
+  "info": {
+    "name": "FireGuard API",
+    "description": "FireGuard gateway and internal service smoke-test requests.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "gateway_url", "value": "http://localhost:8090" },
+    { "key": "intake_url", "value": "http://localhost:8004" },
+    { "key": "retrieval_url", "value": "http://localhost:8001" },
+    { "key": "compliance_url", "value": "http://localhost:8002" },
+    { "key": "report_url", "value": "http://localhost:8003" },
+    { "key": "username", "value": "admin" },
+    { "key": "password", "value": "StrongPassword123!" },
+    { "key": "access_token", "value": "" },
+    { "key": "pdf_file", "value": "" },
+    { "key": "session_id", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Gateway - Client API",
+      "item": [
+        {
+          "name": "Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{gateway_url}}/health"
+          }
+        },
+        {
+          "name": "Register User",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{username}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{gateway_url}}/auth/register"
+          }
+        },
+        {
+          "name": "Login - Get JWT",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Login succeeded', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('access_token', json.access_token);",
+                  "pm.test('JWT token saved', function () { pm.expect(json.access_token).to.be.a('string').and.not.empty; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/x-www-form-urlencoded" }
+            ],
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "username", "value": "{{username}}", "type": "text" },
+                { "key": "password", "value": "{{password}}", "type": "text" }
+              ]
+            },
+            "url": "{{gateway_url}}/auth/token"
+          }
+        },
+        {
+          "name": "Analyze Text - Full Report",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.report && json.report.session_id) pm.collectionVariables.set('session_id', json.report.session_id);",
+                  "pm.test('Analysis request completed', function () { pm.expect(pm.response.code).to.be.oneOf([200, 502, 503]); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"raw_prompt\": \"A five-storey hospital has reinforced concrete walls, gypsum board partitions, 5kg ABC fire extinguishers on every floor near stairwell entrances, a protected escape stairwell, and a flammable liquid storage room.\",\n  \"building_name\": \"Postman Text Hospital\",\n  \"auditor_notes\": \"Assess fire safety compliance and identify missing measurements.\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{gateway_url}}/analyze/text"
+          }
+        },
+        {
+          "name": "Analyze PDF - Full Report",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const json = pm.response.json();",
+                  "if (json.report && json.report.session_id) pm.collectionVariables.set('session_id', json.report.session_id);",
+                  "pm.test('PDF analysis request completed', function () { pm.expect(pm.response.code).to.be.oneOf([200, 502, 503]); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "file", "type": "file", "src": "{{pdf_file}}" },
+                { "key": "building_name", "value": "Postman PDF Hospital", "type": "text" },
+                { "key": "auditor_notes", "value": "Assess fire safety compliance and identify missing measurements.", "type": "text" }
+              ]
+            },
+            "url": "{{gateway_url}}/analyze"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Service Health Checks",
+      "item": [
+        {
+          "name": "Intake Health",
+          "request": { "method": "GET", "header": [], "url": "{{intake_url}}/health" }
+        },
+        {
+          "name": "Retrieval Health",
+          "request": { "method": "GET", "header": [], "url": "{{retrieval_url}}/health" }
+        },
+        {
+          "name": "Compliance Health",
+          "request": { "method": "GET", "header": [], "url": "{{compliance_url}}/health" }
+        },
+        {
+          "name": "Report Health",
+          "request": { "method": "GET", "header": [], "url": "{{report_url}}/health" }
+        },
+        {
+          "name": "Retrieval Dense Health",
+          "request": { "method": "GET", "header": [], "url": "{{retrieval_url}}/health/dense" }
+        },
+        {
+          "name": "Retrieval Sparse Health",
+          "request": { "method": "GET", "header": [], "url": "{{retrieval_url}}/health/sparse" }
+        },
+        {
+          "name": "Compliance All Dependencies",
+          "request": { "method": "GET", "header": [], "url": "{{compliance_url}}/health/all" }
+        },
+        {
+          "name": "Report All Dependencies",
+          "request": { "method": "GET", "header": [], "url": "{{report_url}}/health/all" }
+        }
+      ]
+    }
+  ]
+}

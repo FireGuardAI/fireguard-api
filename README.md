@@ -1,1 +1,2 @@
-# fireguard-api
+# FireGuard API Gateway
+
