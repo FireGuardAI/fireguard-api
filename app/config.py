@@ -18,6 +18,11 @@ class Settings(BaseSettings):
     request_timeout_seconds: float = Field(default=330.0, gt=0)
     max_upload_bytes: int = Field(default=15 * 1024 * 1024, gt=0)
     analyze_rate_limit: str = "10/minute"
+    student_monthly_report_limit: int = Field(default=5, ge=1, le=5)
+    institutional_email_domains: list[str] = Field(
+        default_factory=lambda: ["sliit.lk", "uom.lk"]
+    )
+    mock_payments_enabled: bool = False
 
 
 settings = Settings()

@@ -11,8 +11,13 @@
     { "key": "compliance_url", "value": "http://localhost:8002" },
     { "key": "report_url", "value": "http://localhost:8003" },
     { "key": "username", "value": "admin" },
+    { "key": "email", "value": "student@sliit.lk" },
     { "key": "password", "value": "StrongPassword123!" },
+    { "key": "registration_plan", "value": "basic" },
+    { "key": "expected_plan", "value": "basic" },
+    { "key": "purchase_plan", "value": "basic" },
     { "key": "access_token", "value": "" },
+    { "key": "checkout_id", "value": "" },
     { "key": "pdf_file", "value": "" },
     { "key": "session_id", "value": "" }
   ],
@@ -30,6 +35,22 @@
         },
         {
           "name": "Register User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Registration succeeded', function () { pm.response.to.have.status(201); });",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('expected_plan', json.plan);",
+                  "if (json.checkout_id) pm.collectionVariables.set('checkout_id', json.checkout_id); else pm.collectionVariables.unset('checkout_id');",
+                  "pm.test('Selected plan returned', function () { pm.expect(json.plan).to.eql(pm.collectionVariables.get('registration_plan')); });",
+                  "if (json.checkout_id) pm.test('Mock payment details returned', function () { pm.expect(json.amount).to.be.a('number'); });"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [
@@ -37,7 +58,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"username\": \"{{username}}\",\n  \"password\": \"{{password}}\"\n}",
+              "raw": "{\n  \"username\": \"{{username}}\",\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\",\n  \"plan\": \"{{registration_plan}}\"\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": "{{gateway_url}}/auth/register"
@@ -72,6 +93,121 @@
               ]
             },
             "url": "{{gateway_url}}/auth/token"
+          }
+        },
+        {
+          "name": "Complete Registration Payment",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Registration payment completed', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('expected_plan', json.plan);",
+                  "pm.test('Registered plan activated', function () { pm.expect(json.plan).to.eql(pm.collectionVariables.get('registration_plan')); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"checkout_id\": \"{{checkout_id}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{gateway_url}}/billing/mock/confirm"
+          }
+        },
+        {
+          "name": "Account - Current Plan",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Account lookup succeeded', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.test('Expected plan is visible', function () { pm.expect(json.plan).to.eql(pm.collectionVariables.get('expected_plan')); });",
+                  "pm.test('Plan is supported', function () { pm.expect(['student', 'basic', 'pro', 'enterprise', 'government']).to.include(json.plan); });",
+                  "pm.test('Reports remaining has the expected type', function () { pm.expect(json.reports_remaining === null || typeof json.reports_remaining === 'number').to.eql(true); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" }
+            ],
+            "url": "{{gateway_url}}/account/me"
+          }
+        },
+        {
+          "name": "Mock Checkout",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Checkout created', function () { pm.response.to.have.status(201); });",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('checkout_id', json.checkout_id);",
+                  "pm.test('Checkout ID saved', function () { pm.expect(json.checkout_id).to.be.a('string').and.not.empty; });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plan\": \"{{purchase_plan}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{gateway_url}}/billing/mock/checkout"
+          }
+        },
+        {
+          "name": "Mock Payment Confirm",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Mock payment completed', function () { pm.response.to.have.status(200); });",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('expected_plan', json.plan);",
+                  "pm.test('Purchased plan activated', function () { pm.expect(json.plan).to.eql(pm.collectionVariables.get('purchase_plan')); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{access_token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"checkout_id\": \"{{checkout_id}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": "{{gateway_url}}/billing/mock/confirm"
           }
         },
         {
@@ -113,7 +249,11 @@
                 "exec": [
                   "const json = pm.response.json();",
                   "if (json.report && json.report.session_id) pm.collectionVariables.set('session_id', json.report.session_id);",
-                  "pm.test('PDF analysis request completed', function () { pm.expect(pm.response.code).to.be.oneOf([200, 502, 503]); });"
+                  "const expectedPlan = pm.collectionVariables.get('expected_plan');",
+                  "pm.test('PDF access matches the selected plan', function () {",
+                  "  if (expectedPlan === 'student') pm.expect(pm.response.code).to.eql(403);",
+                  "  else pm.expect(pm.response.code).to.be.oneOf([200, 502, 503]);",
+                  "});"
                 ]
               }
             }
