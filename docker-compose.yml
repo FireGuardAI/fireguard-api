@@ -3,6 +3,8 @@ services:
     image: postgres:16-alpine
     container_name: fireguard-api-postgres
     restart: unless-stopped
+    ports:
+      - "127.0.0.1:5433:5432"
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-fireguard}
       POSTGRES_USER: ${POSTGRES_USER:-fireguard}
@@ -50,7 +52,7 @@ volumes:
 networks:
   fireguard-api-db:
     driver: bridge
-    internal: true
+    internal: false
   fireguard-agents:
     external: true
     name: fireguard-vector-store_fireguard-net
